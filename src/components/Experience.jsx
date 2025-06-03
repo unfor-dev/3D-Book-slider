@@ -16,7 +16,10 @@ export const Experience = () => {
         maxDistance={(8)}
         enablePan={(false)}
       />
-      <Environment preset="studio"></Environment>
+      <Environment
+        files="/images/rooitou_park_1k.hdr" // <-- bu yerga o'zingizning HDR fayl nomini yozing
+      />
+
       <directionalLight
         position={[2, 5, 2]}
         intensity={2.5}
