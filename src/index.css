@@ -3,17 +3,26 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body {
+  margin: 0;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 #root {
   width: 100vw;
   height: 100vh;
   background: radial-gradient(#a2b6ce, #232525 80%);
-  /* background: radial-gradient(#d8d6c5, #4bd7d5 80%); */
-}
-
-body {
-  margin: 0;
 }
 
 .outline-text {
   -webkit-text-stroke: 1px white;
+}
+
+/* GPU-accelerated scrolling banner */
+.animate-horizontal-scroll,
+.animate-horizontal-scroll-2 {
+  will-change: transform;
 }

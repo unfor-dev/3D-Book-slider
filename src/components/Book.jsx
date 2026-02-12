@@ -1,9 +1,9 @@
 // --- Kutubxonalarni import qilish ---
 import { useCursor, useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { easing } from "maath";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bone,
   BoxGeometry,
@@ -21,13 +21,13 @@ import { degToRad } from "three/src/math/MathUtils.js";
 import { pageAtom, pages } from "./UI";
 
 // --- Sozlamalar va doimiylar (constants) ---
-const easingFactor = 0.5;              // Asosiy aylanish silliqligini boshqaradi
-const easingFactorFold = 0.3;          // Bukilish (fold) silliqligini boshqaradi
-const insideCurveStrength = 0.18;      // Kitob ichi tomonga egilish kuchi
-const outsideCurveStrength = 0.05;     // Tashqi tomonga egilish kuchi
-const turningCurveStrength = 0.09;     // Aylanish paytidagi egilish kuchi
+const easingFactor = 0.5;
+const easingFactorFold = 0.3;
+const insideCurveStrength = 0.18;
+const outsideCurveStrength = 0.05;
+const turningCurveStrength = 0.09;
 
-// Sahifa o‘lchamlari
+// Sahifa o'lchamlari
 const PAGE_WIDTH = 1.28;
 const PAGE_HEIGHT = 1.71;
 const PAGE_DEPTH = 0.003;
@@ -43,7 +43,7 @@ const pageGeometry = new BoxGeometry(
   2
 );
 
-// Sahifani (box'ni) o'ngga siljitish — boshlanish nuqtasini o‘ngga o‘tkazish
+// Sahifani o'ngga siljitish
 pageGeometry.translate(PAGE_WIDTH / 2, 0, 0);
 
 // Tana geometriyasi uchun skinIndex va skinWeight larni hisoblash
@@ -63,23 +63,23 @@ for (let i = 0; i < position.count; i++) {
   skinWeights.push(1 - skinWeight, skinWeight, 0, 0);
 }
 
-// SkinIndex va SkinWeight larni geometriyaga qo‘shish
+// SkinIndex va SkinWeight larni geometriyaga qo'shish
 pageGeometry.setAttribute("skinIndex", new Uint16BufferAttribute(skinIndexes, 4));
 pageGeometry.setAttribute("skinWeight", new Float32BufferAttribute(skinWeights, 4));
 
-// --- Rangsiz (white) va emissive ranglar ---
+// --- Ranglar ---
 const whiteColor = new Color("white");
 const emissiveColor = new Color("orange");
 
 // Har bir sahifa materiali (4 tomoni)
 const pageMaterials = [
-  new MeshStandardMaterial({ color: whiteColor }), // Front
-  new MeshStandardMaterial({ color: "#111" }),     // Back
-  new MeshStandardMaterial({ color: whiteColor }), // Side1
-  new MeshStandardMaterial({ color: whiteColor }), // Side2
+  new MeshStandardMaterial({ color: whiteColor }),
+  new MeshStandardMaterial({ color: "#111" }),
+  new MeshStandardMaterial({ color: whiteColor }),
+  new MeshStandardMaterial({ color: whiteColor }),
 ];
 
-// --- Teksturalarni avvaldan preload qilish (yuklashni oldindan boshlash) ---
+// --- Teksturalarni preload qilish ---
 pages.forEach((page) => {
   useTexture.preload(`/textures/${page.front}.jpeg`);
   useTexture.preload(`/textures/${page.back}.jpeg`);
@@ -103,9 +103,9 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
   const lastOpened = useRef(opened);
   const skinnedMeshRef = useRef();
   const [highlighted, setHighlighted] = useState(false);
-  useCursor(highlighted); // Kursorni o‘zgartirish
+  useCursor(highlighted);
 
-  // --- SkinnedMesh yaratish (faqat bir marta) ---
+  // --- SkinnedMesh yaratish (texture'lar bilan) ---
   const manualSkinnedMesh = useMemo(() => {
     const bones = [];
     for (let i = 0; i <= PAGE_SEGMENTS; i++) {
@@ -116,7 +116,6 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
     }
     const skeleton = new Skeleton(bones);
 
-    // 4 tomon + old + orqa sahifa
     const materials = [
       ...pageMaterials,
       new MeshStandardMaterial({
@@ -142,11 +141,11 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
     const mesh = new SkinnedMesh(pageGeometry, materials);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.frustumCulled = false; // Har doim sahnada ko‘rinadi
+    mesh.frustumCulled = false;
     mesh.add(skeleton.bones[0]);
     mesh.bind(skeleton);
     return mesh;
-  }, []);
+  }, [picture, picture2, pictureRoughness, number]);
 
   // --- Animatsiyalarni Frame asosida boshqarish ---
   useFrame((_, delta) => {
@@ -175,7 +174,7 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
       targetRotation += degToRad(number * 0.8);
     }
 
-    // Har bir bo‘g‘imga rotation qo‘llash
+    // Har bir bo'g'imga rotation qo'llash
     const bones = skinnedMeshRef.current.skeleton.bones;
     for (let i = 0; i < bones.length; i++) {
       const target = i === 0 ? group.current : bones[i];
@@ -192,7 +191,6 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
       let foldRotationAngle = degToRad(Math.sign(targetRotation) * 2);
 
       if (bookClosed) {
-        // Agar kitob yopiq bo‘lsa, faqat bosh bo‘g‘im harakat qiladi
         if (i === 0) {
           rotationAngle = targetRotation;
           foldRotationAngle = 0;
@@ -212,26 +210,34 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
     }
   });
 
-  const [_, setPage] = useAtom(pageAtom);
+  // useSetAtom — faqat setter, ortiqcha re-render yo'q
+  const setPage = useSetAtom(pageAtom);
 
-  // --- Sahifa JSX --- //
+  // Memoized event handler'lar
+  const handlePointerEnter = useCallback((e) => {
+    e.stopPropagation();
+    setHighlighted(true);
+  }, []);
+
+  const handlePointerLeave = useCallback((e) => {
+    e.stopPropagation();
+    setHighlighted(false);
+  }, []);
+
+  const handleClick = useCallback((e) => {
+    e.stopPropagation();
+    setPage(opened ? number : number + 1);
+    setHighlighted(false);
+  }, [opened, number, setPage]);
+
+  // --- Sahifa JSX ---
   return (
     <group
       {...props}
       ref={group}
-      onPointerEnter={(e) => {
-        e.stopPropagation();
-        setHighlighted(true);
-      }}
-      onPointerLeave={(e) => {
-        e.stopPropagation();
-        setHighlighted(false);
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        setPage(opened ? number : number + 1);
-        setHighlighted(false);
-      }}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      onClick={handleClick}
     >
       <primitive
         object={manualSkinnedMesh}
@@ -242,12 +248,12 @@ const Page = ({ number, front, back, page, opened, bookClosed, ...props }) => {
   );
 };
 
-// --- Book Componenti (kitob ichidagi barcha sahifalarni boshqaradi) ---
+// --- Book Componenti ---
 export const Book = ({ ...props }) => {
   const [page] = useAtom(pageAtom);
   const [delayedPage, setDelayedPage] = useState(page);
 
-  // Sahifalarni sekin-sekin o‘zgartirish (smooth page turning)
+  // Sahifalarni sekin-sekin o'zgartirish (smooth page turning)
   useEffect(() => {
     let timeout;
     const goToPage = () => {

@@ -1,5 +1,6 @@
 import { Environment, Float, OrbitControls } from "@react-three/drei";
 import { Book } from "./Book";
+
 export const Experience = () => {
   return (
     <>
@@ -12,20 +13,18 @@ export const Experience = () => {
         <Book />
       </Float>
       <OrbitControls
-        minDistance={(1.8)}
-        maxDistance={(8)}
-        enablePan={(false)}
+        minDistance={1.8}
+        maxDistance={8}
+        enablePan={false}
       />
-      <Environment
-        files="/images/rooitou_park_1k.hdr" // <-- bu yerga o'zingizning HDR fayl nomini yozing
-      />
+      <Environment files="/images/rooitou_park_1k.hdr" />
 
       <directionalLight
         position={[2, 5, 2]}
         intensity={2.5}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-bias={-0.0001}
       />
       <mesh position-y={-1.5} rotation-x={-Math.PI / 2} receiveShadow>
